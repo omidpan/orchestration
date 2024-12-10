@@ -1,0 +1,57 @@
+version: '3'
+
+services:
+  concourse-db:
+    image: postgres:latest
+    container_name: concourse-db
+    environment:
+      POSTGRES_DB: concourse
+      POSTGRES_USER: concourse
+      POSTGRES_PASSWORD: concourse_pass
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U concourse"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - concourse-net
+
+  concourse-web:
+    image: concourse/concourse:latest
+    container_name: concourse-web
+    command: web
+    depends_on:
+      - concourse-db
+    ports:
+      - "8080:8080"
+    environment:
+      CONCOURSE_POSTGRES_HOST: concourse-db
+      CONCOURSE_POSTGRES_USER: concourse
+      CONCOURSE_POSTGRES_PASSWORD: concourse_pass
+      CONCOURSE_POSTGRES_DATABASE: concourse
+      CONCOURSE_ADD_LOCAL_USER: admin:admin
+      CONCOURSE_MAIN_TEAM_LOCAL_USER: admin
+    volumes:
+      - ./keys/tsa_host_key:/concourse-keys/tsa_host_key
+      - ./keys/tsa_host_key.pub:/concourse-keys/tsa_host_key.pub
+      - ./keys/tsa_authorized_keys:/concourse-keys/tsa_authorized_keys
+    networks:
+      - concourse-net
+
+  concourse-worker:
+    image: concourse/concourse:latest
+    container_name: concourse-worker
+    command: worker
+    depends_on:
+      - concourse-web
+    environment:
+      CONCOURSE_TSA_HOST: concourse-web:2222
+    volumes:
+      - ./keys/worker_key:/concourse-keys/worker_key
+      - ./keys/worker_key.pub:/concourse-keys/worker_key.pub
+    networks:
+      - concourse-net
+
+networks:
+  concourse-net:
+    driver: bridge
